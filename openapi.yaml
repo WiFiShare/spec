@@ -1,0 +1,294 @@
+openapi: 3.1.0
+info:
+  title: WiFiShare API
+  version: "1.0.0-draft"
+  summary: Anonymous ingest, area lookups, reports, opt-out and venue claims.
+  description: |
+    Version 1 of the WiFiShare API. Three properties are load-bearing:
+
+    - Contributing needs no account and carries no device identifier. A batch of
+      observations is encrypted to an ingest key with HPKE (RFC 9180) before it
+      is posted, so proxies and logs never see it.
+    - A lookup asks for a geohash-5 area, about 4.9 km across, so the server is
+      never told a caller's precise position.
+    - There is no endpoint that resolves a BSSID to a position, and community
+      found networks carry no BSSID at all.
+
+    See the `spec` repo for the schemas and the privacy rules the server
+    enforces.
+  license:
+    name: Apache-2.0
+    identifier: Apache-2.0
+servers:
+  - url: https://api.wifishare.example/v1
+    description: Placeholder. The production host is set when hosting is decided (D9).
+tags:
+  - name: ingest
+  - name: read
+  - name: feedback
+  - name: owners
+
+paths:
+  /keys:
+    get:
+      tags: [ingest]
+      operationId: getKeys
+      summary: Current ingest public keys
+      description: |
+        Clients ship with a pinned key and refresh it here. The previous key
+        stays valid for 30 days after a rotation.
+      responses:
+        "200":
+          description: The active keys, newest first.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [keys]
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      required: [key_id, suite, public_key, not_after]
+                      properties:
+                        key_id:
+                          type: string
+                          examples: ["2026q4"]
+                        suite:
+                          const: x25519-sha256-chacha20poly1305
+                        public_key:
+                          type: string
+                          description: 32 bytes, base64url without padding.
+                        not_after:
+                          type: string
+                          format: date
+
+  /batches:
+    post:
+      tags: [ingest]
+      operationId: postBatch
+      summary: Submit an encrypted batch of observations
+      description: |
+        The body is an envelope. The server decrypts it, validates every
+        observation against the filter rules a second time, and rejects the
+        whole batch if any of them breaks a rule. No part of the request is
+        associated with the caller beyond a rate-limit bucket, which is a hash
+        of the IP address under a salt that rotates daily and is deleted within
+        24 hours.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Envelope"
+      responses:
+        "202":
+          description: Accepted. The body says what was kept, and never which network.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted, rejected]
+                properties:
+                  accepted: { type: integer, minimum: 0 }
+                  rejected: { type: integer, minimum: 0 }
+                  rules:
+                    type: array
+                    description: Rule ids that rejected observations, without saying which ones.
+                    items: { type: string, examples: ["R5"] }
+        "400":
+          $ref: "#/components/responses/Problem"
+        "409":
+          description: The key id is retired. Fetch /keys and resend.
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/Problem" }
+        "429":
+          $ref: "#/components/responses/RateLimited"
+
+  /areas/{geohash5}:
+    get:
+      tags: [read]
+      operationId: getArea
+      summary: Published networks in one area
+      description: |
+        Returns the same document as the corresponding file in the public dump,
+        so a client has one parser for both. Cache with the returned ETag: most
+        areas change at most once a week.
+      parameters:
+        - name: geohash5
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9b-hjkmnp-z]{5}$"
+          examples:
+            bologna: { value: srbj4 }
+        - name: If-None-Match
+          in: header
+          required: false
+          schema: { type: string }
+      responses:
+        "200":
+          description: The area, as GeoJSON.
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string, examples: ["public, max-age=3600"] } }
+          content:
+            application/geo+json:
+              schema: { $ref: "#/components/schemas/Area" }
+        "304":
+          description: Unchanged.
+        "404":
+          description: No published networks in this area yet.
+
+  /networks/{id}/reports:
+    post:
+      tags: [feedback]
+      operationId: postReport
+      summary: Report whether a network works
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, pattern: "^[a-z2-7]{12}$" }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Report" }
+      responses:
+        "202": { description: Recorded. }
+        "404": { description: Unknown network. }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /optout:
+    post:
+      tags: [feedback]
+      operationId: postOptOut
+      summary: Remove a network and keep it out
+      description: |
+        Takes a BSSID, which an app reads while connected to the network, or an
+        SSID plus an area from the website. The network is unpublished
+        immediately and leaves the dump at the next weekly export. The BSSID is
+        then stored only as an HMAC under a server-held pepper, so the network
+        can be blocked without keeping it in the clear.
+
+        No proof of ownership is demanded. Removal is low risk, and an owner who
+        wants the network listed again can claim it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/OptOut" }
+      responses:
+        "202": { description: Accepted, whether or not the network was known. }
+        "400": { $ref: "#/components/responses/Problem" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /claims:
+    post:
+      tags: [owners]
+      operationId: postClaim
+      summary: Claim a network as its owner and choose what to share
+      description: |
+        Starts the SSID challenge. The response carries a code the owner appends
+        to the network name; an app confirms it at
+        `POST /claims/{id}/verify`. Publishing a claim puts the venue's exact
+        position and BSSIDs into the open data, and the client must say so
+        before the owner confirms.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Claim" }
+      responses:
+        "201":
+          description: Challenge issued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [claim_id, challenge_code, expires_at]
+                properties:
+                  claim_id: { type: string, format: uuid }
+                  challenge_code:
+                    type: string
+                    pattern: "^ws-[a-z0-9]{6}$"
+                    description: Append this to the SSID, for example `Bar Centrale ws-4f2a9c`.
+                  expires_at: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/Problem" }
+
+  /claims/{claim_id}/verify:
+    post:
+      tags: [owners]
+      operationId: verifyClaim
+      summary: Confirm the challenge code is visible on air
+      parameters:
+        - name: claim_id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [observed_ssid, bssid]
+              properties:
+                observed_ssid: { type: string, maxLength: 40 }
+                bssid: { type: string, pattern: "^[0-9a-f]{2}(:[0-9a-f]{2}){5}$" }
+      responses:
+        "200":
+          description: Verified. The network is now owner-verified.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [network_id]
+                properties:
+                  network_id: { type: string, pattern: "^[a-z2-7]{12}$" }
+        "409": { description: The code was not seen on that network. }
+
+components:
+  responses:
+    Problem:
+      description: The request was malformed or broke a rule.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    RateLimited:
+      description: Too many requests from this bucket.
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+  schemas:
+    Problem:
+      type: object
+      description: RFC 9457 problem details.
+      required: [type, title, status]
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        rule:
+          type: string
+          description: The filter or publish rule that refused, when there is one.
+          examples: ["R5"]
+    Envelope:
+      $ref: "./schemas/envelope.schema.json"
+    Area:
+      $ref: "./schemas/area.schema.json"
+    Network:
+      $ref: "./schemas/network.schema.json"
+    Report:
+      $ref: "./schemas/report.schema.json"
+    OptOut:
+      $ref: "./schemas/optout.schema.json"
+    Claim:
+      $ref: "./schemas/claim.schema.json"

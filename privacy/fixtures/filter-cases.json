@@ -1,0 +1,732 @@
+{
+  "schema": "wifishare.fixtures/1",
+  "spec_version": "1",
+  "now": "2026-09-17T14:37:12Z",
+  "note": "Acceptance tests for the on-device privacy filter defined in privacy/filter-rules.md. Inputs are raw platform-level scan results, before any filtering or normalisation. 'now' is the fixed clock every implementation must use when evaluating R7. A client that keeps a case marked drop is a privacy bug and must not ship.",
+  "rules": {
+    "R1": "hidden or empty SSID",
+    "R2": "_nomap or _optout suffix",
+    "R3": "locally administered BSSID",
+    "R4": "personal hotspot pattern",
+    "R5": "security other than open or owe",
+    "R6": "no location fix, or accuracy worse than 50 m",
+    "R7": "older than 7 days",
+    "R8": "unknown field present",
+    "R9": "BSSID lowercased",
+    "R10": "position rounded to 4 decimals",
+    "R11": "timestamp truncated to the hour, UTC",
+    "R12": "batch: cap, dedupe, shuffle, no linkage fields"
+  },
+  "observation_cases": [
+    {
+      "id": "keep-open-library",
+      "input": {
+        "ssid": "Biblioteca Sala Borsa",
+        "hidden": false,
+        "bssid": "B8:27:EB:1A:2B:3C",
+        "security": "open",
+        "captive_portal": "none",
+        "lat": 44.4938123,
+        "lon": 11.3426789,
+        "accuracy_m": 12.5,
+        "rssi": -62,
+        "frequency_mhz": 2412,
+        "observed_at": "2026-09-17T14:37:12Z",
+        "source": "scan"
+      },
+      "expect": {
+        "action": "keep",
+        "normalized": {
+          "ssid": "Biblioteca Sala Borsa",
+          "bssid": "b8:27:eb:1a:2b:3c",
+          "security": "open",
+          "captive_portal": "none",
+          "lat": 44.4938,
+          "lon": 11.3427,
+          "accuracy_m": 12.5,
+          "rssi": -62,
+          "frequency_mhz": 2412,
+          "observed_at": "2026-09-17T14:00:00Z",
+          "source": "scan"
+        }
+      }
+    },
+    {
+      "id": "keep-owe-municipal",
+      "input": {
+        "ssid": "Comune Free WiFi",
+        "hidden": false,
+        "bssid": "3c:37:12:aa:bb:cc",
+        "security": "owe",
+        "captive_portal": "unknown",
+        "lat": -33.8688197,
+        "lon": 151.2092955,
+        "accuracy_m": 8,
+        "rssi": -71,
+        "observed_at": "2026-09-17T09:05:00Z",
+        "source": "scan"
+      },
+      "expect": {
+        "action": "keep",
+        "normalized": {
+          "ssid": "Comune Free WiFi",
+          "bssid": "3c:37:12:aa:bb:cc",
+          "security": "owe",
+          "captive_portal": "unknown",
+          "lat": -33.8688,
+          "lon": 151.2093,
+          "accuracy_m": 8,
+          "rssi": -71,
+          "observed_at": "2026-09-17T09:00:00Z",
+          "source": "scan"
+        }
+      }
+    },
+    {
+      "id": "keep-captive-portal-connected",
+      "input": {
+        "ssid": "Aeroporto WiFi",
+        "hidden": false,
+        "bssid": "00:1F:3F:D7:3C:58",
+        "security": "open",
+        "captive_portal": "detected",
+        "lat": 45.4642035,
+        "lon": 9.1899964,
+        "accuracy_m": 22,
+        "rssi": -55,
+        "observed_at": "2026-09-16T23:12:00Z",
+        "source": "connected"
+      },
+      "expect": {
+        "action": "keep",
+        "normalized": {
+          "ssid": "Aeroporto WiFi",
+          "bssid": "00:1f:3f:d7:3c:58",
+          "security": "open",
+          "captive_portal": "detected",
+          "lat": 45.4642,
+          "lon": 9.19,
+          "accuracy_m": 22,
+          "rssi": -55,
+          "observed_at": "2026-09-16T23:00:00Z",
+          "source": "connected"
+        }
+      }
+    },
+    {
+      "id": "keep-negative-coordinates",
+      "input": {
+        "ssid": "Praia Livre",
+        "hidden": false,
+        "bssid": "ac:de:48:00:11:22",
+        "security": "open",
+        "captive_portal": "unknown",
+        "lat": -22.9068467,
+        "lon": -43.1728965,
+        "accuracy_m": 17,
+        "rssi": -68,
+        "observed_at": "2026-09-15T07:44:30Z",
+        "source": "scan"
+      },
+      "expect": {
+        "action": "keep",
+        "normalized": {
+          "ssid": "Praia Livre",
+          "bssid": "ac:de:48:00:11:22",
+          "security": "open",
+          "captive_portal": "unknown",
+          "lat": -22.9068,
+          "lon": -43.1729,
+          "accuracy_m": 17,
+          "rssi": -68,
+          "observed_at": "2026-09-15T07:00:00Z",
+          "source": "scan"
+        }
+      }
+    },
+    {
+      "id": "keep-non-utc-timestamp",
+      "input": {
+        "ssid": "Parco Pubblico",
+        "hidden": false,
+        "bssid": "f0:9f:c2:33:44:55",
+        "security": "open",
+        "captive_portal": "unknown",
+        "lat": 41.9027835,
+        "lon": 12.4963655,
+        "accuracy_m": 30,
+        "rssi": -80,
+        "observed_at": "2026-09-17T16:37:12+02:00",
+        "source": "scan"
+      },
+      "expect": {
+        "action": "keep",
+        "normalized": {
+          "ssid": "Parco Pubblico",
+          "bssid": "f0:9f:c2:33:44:55",
+          "security": "open",
+          "captive_portal": "unknown",
+          "lat": 41.9028,
+          "lon": 12.4964,
+          "accuracy_m": 30,
+          "rssi": -80,
+          "observed_at": "2026-09-17T14:00:00Z",
+          "source": "scan"
+        }
+      }
+    },
+    {
+      "id": "keep-accuracy-at-boundary",
+      "input": {
+        "ssid": "Stazione Free",
+        "hidden": false,
+        "bssid": "d8:0d:17:66:77:88",
+        "security": "open",
+        "captive_portal": "unknown",
+        "lat": 44.5057,
+        "lon": 11.3428,
+        "accuracy_m": 50,
+        "rssi": -74,
+        "observed_at": "2026-09-17T11:20:00Z",
+        "source": "scan"
+      },
+      "expect": {
+        "action": "keep",
+        "normalized": {
+          "ssid": "Stazione Free",
+          "bssid": "d8:0d:17:66:77:88",
+          "security": "open",
+          "captive_portal": "unknown",
+          "lat": 44.5057,
+          "lon": 11.3428,
+          "accuracy_m": 50,
+          "rssi": -74,
+          "observed_at": "2026-09-17T11:00:00Z",
+          "source": "scan"
+        }
+      }
+    },
+    {
+      "id": "keep-almost-stale",
+      "input": {
+        "ssid": "Ostello WiFi",
+        "hidden": false,
+        "bssid": "e4:5f:01:99:aa:bb",
+        "security": "open",
+        "captive_portal": "unknown",
+        "lat": 43.7695604,
+        "lon": 11.2558136,
+        "accuracy_m": 14,
+        "rssi": -66,
+        "observed_at": "2026-09-11T09:00:00Z",
+        "source": "scan"
+      },
+      "expect": {
+        "action": "keep",
+        "normalized": {
+          "ssid": "Ostello WiFi",
+          "bssid": "e4:5f:01:99:aa:bb",
+          "security": "open",
+          "captive_portal": "unknown",
+          "lat": 43.7696,
+          "lon": 11.2558,
+          "accuracy_m": 14,
+          "rssi": -66,
+          "observed_at": "2026-09-11T09:00:00Z",
+          "source": "scan"
+        }
+      }
+    },
+    {
+      "id": "keep-brand-name-in-venue-ssid",
+      "input": {
+        "ssid": "iPhone Repair Shop WiFi",
+        "hidden": false,
+        "bssid": "5c:51:4f:12:34:56",
+        "security": "open",
+        "captive_portal": "unknown",
+        "lat": 51.5073509,
+        "lon": -0.1277583,
+        "accuracy_m": 19,
+        "rssi": -70,
+        "observed_at": "2026-09-17T13:10:00Z",
+        "source": "scan"
+      },
+      "expect": {
+        "action": "keep",
+        "normalized": {
+          "ssid": "iPhone Repair Shop WiFi",
+          "bssid": "5c:51:4f:12:34:56",
+          "security": "open",
+          "captive_portal": "unknown",
+          "lat": 51.5074,
+          "lon": -0.1278,
+          "accuracy_m": 19,
+          "rssi": -70,
+          "observed_at": "2026-09-17T13:00:00Z",
+          "source": "scan"
+        }
+      }
+    },
+    {
+      "id": "keep-nomap-word-not-suffix",
+      "input": {
+        "ssid": "Bar Nomap",
+        "hidden": false,
+        "bssid": "70:4f:57:ab:cd:ef",
+        "security": "open",
+        "captive_portal": "unknown",
+        "lat": 45.070312,
+        "lon": 7.686856,
+        "accuracy_m": 25,
+        "rssi": -77,
+        "observed_at": "2026-09-17T12:00:00Z",
+        "source": "scan"
+      },
+      "expect": {
+        "action": "keep",
+        "normalized": {
+          "ssid": "Bar Nomap",
+          "bssid": "70:4f:57:ab:cd:ef",
+          "security": "open",
+          "captive_portal": "unknown",
+          "lat": 45.0703,
+          "lon": 7.6869,
+          "accuracy_m": 25,
+          "rssi": -77,
+          "observed_at": "2026-09-17T12:00:00Z",
+          "source": "scan"
+        }
+      }
+    },
+    {
+      "id": "drop-empty-ssid",
+      "input": {
+        "ssid": "",
+        "hidden": false,
+        "bssid": "b8:27:eb:11:22:33",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R1" }
+    },
+    {
+      "id": "drop-hidden-network",
+      "input": {
+        "ssid": null,
+        "hidden": true,
+        "bssid": "b8:27:eb:44:55:66",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R1" }
+    },
+    {
+      "id": "drop-nomap-suffix",
+      "input": {
+        "ssid": "Casa Rossi_nomap",
+        "hidden": false,
+        "bssid": "b8:27:eb:77:88:99",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R2" }
+    },
+    {
+      "id": "drop-nomap-suffix-uppercase",
+      "input": {
+        "ssid": "CAFE_NOMAP",
+        "hidden": false,
+        "bssid": "b8:27:eb:aa:bb:cc",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R2" }
+    },
+    {
+      "id": "drop-optout-suffix",
+      "input": {
+        "ssid": "Studio_optout",
+        "hidden": false,
+        "bssid": "b8:27:eb:dd:ee:ff",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R2" }
+    },
+    {
+      "id": "drop-locally-administered-02",
+      "input": {
+        "ssid": "Free WiFi Point",
+        "hidden": false,
+        "bssid": "02:1a:2b:3c:4d:5e",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R3" }
+    },
+    {
+      "id": "drop-locally-administered-da",
+      "input": {
+        "ssid": "Open Guest",
+        "hidden": false,
+        "bssid": "DA:A1:19:00:11:22",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R3" }
+    },
+    {
+      "id": "drop-hotspot-iphone-di",
+      "input": {
+        "ssid": "iPhone di Marco",
+        "hidden": false,
+        "bssid": "b8:27:eb:12:34:56",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R4" }
+    },
+    {
+      "id": "drop-hotspot-possessive",
+      "input": {
+        "ssid": "Anna's iPhone",
+        "hidden": false,
+        "bssid": "b8:27:eb:65:43:21",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R4" }
+    },
+    {
+      "id": "drop-hotspot-androidap",
+      "input": {
+        "ssid": "AndroidAP1234",
+        "hidden": false,
+        "bssid": "b8:27:eb:ab:cd:ef",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R4" }
+    },
+    {
+      "id": "drop-hotspot-galaxy-model",
+      "input": {
+        "ssid": "Galaxy A52 4821",
+        "hidden": false,
+        "bssid": "b8:27:eb:fe:dc:ba",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R4" }
+    },
+    {
+      "id": "drop-hotspot-bare-iphone",
+      "input": {
+        "ssid": "iPhone",
+        "hidden": false,
+        "bssid": "b8:27:eb:0a:0b:0c",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R4" }
+    },
+    {
+      "id": "drop-wpa2-home",
+      "input": {
+        "ssid": "Casa Bianchi",
+        "hidden": false,
+        "bssid": "b8:27:eb:1b:2b:3b",
+        "security": "wpa2-psk",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R5" }
+    },
+    {
+      "id": "drop-wpa3",
+      "input": {
+        "ssid": "Ufficio",
+        "hidden": false,
+        "bssid": "b8:27:eb:2c:3c:4c",
+        "security": "wpa3-psk",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R5" }
+    },
+    {
+      "id": "drop-wep",
+      "input": {
+        "ssid": "OldRouter",
+        "hidden": false,
+        "bssid": "b8:27:eb:3d:4d:5d",
+        "security": "wep",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R5" }
+    },
+    {
+      "id": "drop-enterprise-eduroam",
+      "input": {
+        "ssid": "eduroam",
+        "hidden": false,
+        "bssid": "b8:27:eb:4e:5e:6e",
+        "security": "wpa-enterprise",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R5" }
+    },
+    {
+      "id": "drop-no-location",
+      "input": {
+        "ssid": "Mensa WiFi",
+        "hidden": false,
+        "bssid": "b8:27:eb:5f:6f:7f",
+        "security": "open",
+        "lat": null,
+        "lon": null,
+        "accuracy_m": null,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R6" }
+    },
+    {
+      "id": "drop-poor-accuracy",
+      "input": {
+        "ssid": "Centro Civico",
+        "hidden": false,
+        "bssid": "b8:27:eb:6a:7a:8a",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 85,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R6" }
+    },
+    {
+      "id": "drop-stale-observation",
+      "input": {
+        "ssid": "Fiera WiFi",
+        "hidden": false,
+        "bssid": "b8:27:eb:7b:8b:9b",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-09T10:00:00Z",
+        "source": "scan"
+      },
+      "expect": { "action": "drop", "rule": "R7" }
+    },
+    {
+      "id": "drop-unknown-field",
+      "input": {
+        "ssid": "Piazza Libera",
+        "hidden": false,
+        "bssid": "b8:27:eb:8c:9c:ac",
+        "security": "open",
+        "lat": 44.4938,
+        "lon": 11.3427,
+        "accuracy_m": 10,
+        "rssi": -60,
+        "observed_at": "2026-09-17T14:00:00Z",
+        "source": "scan",
+        "device_model": "Pixel 8"
+      },
+      "expect": { "action": "drop", "rule": "R8" }
+    }
+  ],
+  "batch_cases": [
+    {
+      "id": "dedupe-same-bssid-same-hour",
+      "input": {
+        "observations": [
+          {
+            "ssid": "Portico WiFi",
+            "hidden": false,
+            "bssid": "b8:27:eb:d1:d2:d3",
+            "security": "open",
+            "lat": 44.4938123,
+            "lon": 11.3426789,
+            "accuracy_m": 12,
+            "rssi": -70,
+            "observed_at": "2026-09-17T14:05:00Z",
+            "source": "scan"
+          },
+          {
+            "ssid": "Portico WiFi",
+            "hidden": false,
+            "bssid": "b8:27:eb:d1:d2:d3",
+            "security": "open",
+            "lat": 44.4938144,
+            "lon": 11.3426711,
+            "accuracy_m": 11,
+            "rssi": -55,
+            "observed_at": "2026-09-17T14:52:00Z",
+            "source": "scan"
+          }
+        ]
+      },
+      "expect": { "count": 1, "rule": "R12", "kept_rssi": [-55] }
+    },
+    {
+      "id": "keep-same-bssid-different-hours",
+      "input": {
+        "observations": [
+          {
+            "ssid": "Portico WiFi",
+            "hidden": false,
+            "bssid": "b8:27:eb:d1:d2:d3",
+            "security": "open",
+            "lat": 44.4938123,
+            "lon": 11.3426789,
+            "accuracy_m": 12,
+            "rssi": -70,
+            "observed_at": "2026-09-17T14:05:00Z",
+            "source": "scan"
+          },
+          {
+            "ssid": "Portico WiFi",
+            "hidden": false,
+            "bssid": "b8:27:eb:d1:d2:d3",
+            "security": "open",
+            "lat": 44.4938123,
+            "lon": 11.3426789,
+            "accuracy_m": 12,
+            "rssi": -58,
+            "observed_at": "2026-09-17T15:05:00Z",
+            "source": "scan"
+          }
+        ]
+      },
+      "expect": { "count": 2, "rule": "R12" }
+    },
+    {
+      "id": "cap-at-200",
+      "input": {
+        "generate": {
+          "count": 250,
+          "template": {
+            "ssid": "Generated Open Net",
+            "hidden": false,
+            "bssid_prefix": "b8:27:eb",
+            "security": "open",
+            "lat": 44.4938,
+            "lon": 11.3427,
+            "accuracy_m": 10,
+            "rssi": -65,
+            "observed_at": "2026-09-17T14:00:00Z",
+            "source": "scan"
+          }
+        }
+      },
+      "expect": { "count": 200, "rule": "R12" }
+    },
+    {
+      "id": "reject-batch-linkage-field",
+      "input": {
+        "batch_id": "0f4c1c9a-7b2e-4a1a-9c2a-1d2e3f4a5b6c",
+        "observations": [
+          {
+            "ssid": "Piazza Libera",
+            "hidden": false,
+            "bssid": "b8:27:eb:8c:9c:ac",
+            "security": "open",
+            "lat": 44.4938,
+            "lon": 11.3427,
+            "accuracy_m": 10,
+            "rssi": -60,
+            "observed_at": "2026-09-17T14:00:00Z",
+            "source": "scan"
+          }
+        ]
+      },
+      "expect": { "action": "reject", "rule": "R12" }
+    }
+  ]
+}
