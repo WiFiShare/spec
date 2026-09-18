@@ -6,10 +6,11 @@ position of networks that no owner has verified.
 
 ## Prefix lengths
 
-Cell sizes below are at the equator. A cell keeps its height everywhere, but
-gets narrower towards the poles: the geohash-7 cell over Piazza Maggiore in
-Bologna is 153 m tall and 109 m wide. Where one number is quoted, it is the
-height, which is the larger of the two.
+Cell sizes below are at the equator, written as width by height. A cell keeps
+its height everywhere but gets narrower towards the poles: the geohash-7 cell
+over Piazza Maggiore in Bologna is 109 m wide and 153 m tall. Where this project
+quotes a single number, such as "about 5 km" or "about 150 m", it is the height,
+which is the dimension that does not change with latitude.
 
 | Prefix length | Cell size (approx.) | Used for |
 | --- | --- | --- |
@@ -35,7 +36,9 @@ roughly this block, which is what a person looking for Wi-Fi needs. They do not
 learn which flat a router sits in.
 
 Owner-verified networks are different: the owner asked to be found, so the
-position is published to 5 decimal places (about 1 m) with the BSSIDs.
+position is published to 5 decimal places with the BSSIDs. The stated precision
+stays 10 m: the decimals record where the owner put the pin, and are not a claim
+of metre accuracy.
 
 ## Dump paths
 

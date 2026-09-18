@@ -98,6 +98,13 @@ foreign members naming the cell and the license. Schema:
 `schemas/area.schema.json`. The API returns the same document at
 `GET /v1/areas/{geohash5}`, so a client has one parser for both sources.
 
+## Index file
+
+`index.json` at the root of the dump lists the areas that have a file, so a
+client fetches one document instead of probing. Schema:
+`schemas/index.schema.json`. The counts in it are a convenience for people
+reading the dump: a client must not conclude an area is empty from a count.
+
 ## Report, OptOut, Claim
 
 | Entity | Purpose | Notes |

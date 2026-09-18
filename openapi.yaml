@@ -195,7 +195,7 @@ paths:
       description: |
         Starts the SSID challenge. The response carries a code the owner appends
         to the network name; an app confirms it at
-        `POST /claims/{id}/verify`. Publishing a claim puts the venue's exact
+        `POST /claims/{claim_id}/verify`. Publishing a claim puts the venue's exact
         position and BSSIDs into the open data, and the client must say so
         before the owner confirms.
       requestBody:
