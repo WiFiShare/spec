@@ -1,0 +1,87 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install validators
+        run: pip install --quiet jsonschema pyyaml
+
+      - name: Check every schema is a valid JSON Schema
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          from jsonschema import Draft202012Validator
+          bad = 0
+          for p in sorted(pathlib.Path("schemas").glob("*.json")):
+              try:
+                  Draft202012Validator.check_schema(json.loads(p.read_text()))
+                  print(f"ok   {p}")
+              except Exception as e:
+                  bad += 1
+                  print(f"FAIL {p}: {e}")
+          sys.exit(bad)
+          PY
+
+      - name: Check the OpenAPI document parses
+        run: |
+          python - <<'PY'
+          import pathlib, yaml
+          doc = yaml.safe_load(pathlib.Path("openapi.yaml").read_text())
+          assert doc["openapi"].startswith("3."), doc["openapi"]
+          print(f"ok   openapi {doc['openapi']}, {len(doc['paths'])} paths")
+          PY
+
+      - name: Check the fixtures are well formed
+        run: |
+          python - <<'PY'
+          import json, pathlib, sys
+          from jsonschema import Draft202012Validator
+          fx = json.loads(pathlib.Path("privacy/fixtures/filter-cases.json").read_text())
+          obs = Draft202012Validator(json.loads(pathlib.Path("schemas/observation.schema.json").read_text()))
+          rules = set(fx["rules"])
+          ids, bad = [], 0
+
+          for case in fx["observation_cases"] + fx["batch_cases"]:
+              ids.append(case["id"])
+          dupes = {i for i in ids if ids.count(i) > 1}
+          if dupes:
+              bad += 1
+              print(f"FAIL duplicate fixture ids: {sorted(dupes)}")
+
+          for case in fx["observation_cases"]:
+              expect = case["expect"]
+              if expect["action"] == "drop":
+                  if expect.get("rule") not in rules:
+                      bad += 1
+                      print(f"FAIL {case['id']}: unknown rule {expect.get('rule')}")
+              else:
+                  for err in obs.iter_errors(expect["normalized"]):
+                      bad += 1
+                      print(f"FAIL {case['id']}: normalized output invalid: {err.message}")
+
+          # Every drop rule the spec defines must be exercised by at least one case.
+          drop_rules = {f"R{n}" for n in range(1, 9)}
+          covered = {c["expect"].get("rule") for c in fx["observation_cases"]}
+          missing = drop_rules - covered
+          if missing:
+              bad += 1
+              print(f"FAIL drop rules with no fixture: {sorted(missing)}")
+
+          print(f"ok   {len(fx['observation_cases'])} observation cases, {len(fx['batch_cases'])} batch cases")
+          sys.exit(bad)
+          PY
