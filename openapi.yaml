@@ -70,9 +70,11 @@ paths:
       operationId: postBatch
       summary: Submit an encrypted batch of observations
       description: |
-        The body is an envelope. The server decrypts it, validates every
-        observation against the filter rules a second time, and rejects the
-        whole batch if any of them breaks a rule. No part of the request is
+        The body is an envelope. The server decrypts it and validates every
+        observation against the filter rules a second time. A violation of
+        R1-R11 rejects the whole batch with `400`, naming the first offending
+        rule. Duplicates removed by R12 are not a violation: the batch is
+        accepted and the response says how many went. No part of the request is
         associated with the caller beyond a rate-limit bucket, which is a hash
         of the IP address under a salt that rotates daily and is deleted within
         24 hours.
@@ -92,11 +94,14 @@ paths:
                 required: [accepted, rejected]
                 properties:
                   accepted: { type: integer, minimum: 0 }
-                  rejected: { type: integer, minimum: 0 }
+                  rejected:
+                    type: integer
+                    minimum: 0
+                    description: Observations removed as duplicates by R12. A rule violation returns 400 instead.
                   rules:
                     type: array
-                    description: Rule ids that rejected observations, without saying which ones.
-                    items: { type: string, examples: ["R5"] }
+                    description: Rule ids that removed observations, without saying which ones. Today only R12 can appear here.
+                    items: { type: string, examples: ["R12"] }
         "400":
           $ref: "#/components/responses/Problem"
         "409":

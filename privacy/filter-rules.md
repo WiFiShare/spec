@@ -19,7 +19,7 @@ that is withdrawn keeps its number and is marked withdrawn.
 | **R5** | The security type is anything other than `open` or `owe` | Phase 1 collects only networks that can be shared. A password-protected network enters only through its owner, never through a scan. See D5 in the plan |
 | **R6** | There is no location fix, or its accuracy is worse than 50 m | A position we cannot trust would blur the wrong block |
 | **R7** | The observation is more than 7 days old in the queue | Stale data is not worth the privacy cost of sending it |
-| **R8** | Any field outside the observation schema is set | Belt and braces against a future contributor adding a device id |
+| **R8** | A field is present that is neither in `schemas/observation.schema.json` nor one of the raw platform fields these rules consume. Today that is exactly one field, `hidden`, which R1 reads | Belt and braces against a future contributor adding a device id |
 
 `hotspot_patterns`, each anchored and matched case-insensitively against the
 whole SSID:
@@ -56,6 +56,18 @@ Applied to every observation that survives the drop rules.
 | Rule | Requirement |
 | --- | --- |
 | **R12** | At most 200 observations per batch. Within a batch, keep one observation per (BSSID, rounded position, hour): the one with the strongest RSSI. Shuffle the order before sending. Carry no batch id, sequence number, session id or timestamp of your own |
+
+## What the server does with a broken rule
+
+The two documents have to agree on this, so it is stated once, here.
+
+- A violation of **R1–R11** in any observation rejects the **whole batch**. The
+  server answers `400` with the first offending rule id in the problem
+  document and stores nothing. One bad observation loses the batch, which is
+  the safe direction: the client that sent it is out of date.
+- **R12's dedupe is not a violation.** Duplicates are removed, the batch is
+  accepted, and the `202` body reports how many went and names `R12`.
+- A batch carrying a **linkage field** breaks R12 and is rejected whole.
 
 ## What never goes in a batch
 

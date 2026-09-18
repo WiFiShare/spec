@@ -11,9 +11,36 @@ stays in the database, or is deleted on the schedule in P7.
 | **P3** | For an owner-verified network publish: everything in P2 at full precision (5 decimal places), plus its BSSIDs, the venue name, and the credential only if the owner marked it public |
 | **P4** | Never publish a network whose observations span more than 1 km. Mark it `mobile` and exclude it. A moving access point is a vehicle, a travel router or a phone, and publishing it would track its owner |
 | **P5** | Never publish a network on the opt-out list. The list is stored as HMAC-SHA256 of the BSSID under a server-held pepper, so the server can block a network it is no longer allowed to store in the clear |
-| **P6** | Unpublish a network that has not been observed for 12 months, or that reaches 3 `private` or `gone` reports, or whose owner withdraws it |
-| **P7** | Delete raw observations within 7 days of the aggregation that consumed them. Delete rate-limit bucket hashes within 24 hours. Both are enforced by a scheduled job, not by hand |
+| **P6** | Unpublish a network not observed for 365 days, or that reaches 3 `private` or `gone` reports, or whose owner withdraws it |
+| **P7** | Delete raw observations within 7 days of the aggregation that consumed them. Delete the rate-limit counters and the daily salt within 24 hours. Both are enforced by a scheduled job, not by hand |
 | **P8** | A network's public id is random and carries no derivation from its BSSID, SSID or position. Ids are not reused after P6 |
+
+## How P1 and P7 fit together
+
+P1 counts distinct rate-limit buckets across two days, and P7 deletes bucket
+state after 24 hours. They are about different things:
+
+- The rate-limit **counters** and the **daily salt** die at 24 hours (P7). Once
+  the salt is gone, nobody can work out which address a bucket stood for, and
+  two buckets from different days cannot be matched to each other even if they
+  came from the same address.
+- The bucket **value** stays on the raw observation it arrived with, and dies
+  with it 7 days after the aggregation that consumed it.
+
+So P1 asks a narrower question than it first appears: were there 3 distinct
+contributors within the window the raw data still exists for. A network whose
+third distinct contributor turns up months after the first two never crosses
+the threshold. That is the conservative direction, and it is the intended one.
+
+## Choices these rules leave open, and how the server makes them
+
+Two numbers are visible in the published output, so they are pinned here rather
+than left to each implementation.
+
+| Choice | Rule |
+| --- | --- |
+| RSSI weighting for the centroid | `weight = rssi + 101`, so −100 dBm weighs 1 and 0 dBm weighs 101. Monotonic and never zero |
+| How P4 measures "span" | The diagonal of a bounding box kept cumulatively on the network, not the maximum pairwise distance. Raw observations are deleted at 7 days, so a running box is all that survives. It is never smaller than the true span, so the check errs towards not publishing |
 
 ## Ordering
 
