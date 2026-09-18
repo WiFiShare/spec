@@ -10,11 +10,12 @@ stays in the database, or is deleted on the schedule in P7.
 | **P2** | For a community-found network publish: SSID, security type, captive-portal flag, the centre of its geohash-7 cell, `first_seen` and `last_seen` as dates, and the report counts. Never its BSSID |
 | **P3** | For an owner-verified network publish: everything in P2 at full precision (5 decimal places), plus its BSSIDs, the venue name, and the credential only if the owner marked it public |
 | **P4** | Never publish a network whose observations span more than 1 km. Mark it `mobile` and exclude it. A moving access point is a vehicle, a travel router or a phone, and publishing it would track its owner |
-| **P5** | Never publish a network on the opt-out list. The list is stored as HMAC-SHA256 of the BSSID under a server-held pepper, so the server can block a network it is no longer allowed to store in the clear |
+| **P5** | Never publish a network on the opt-out list, and delete its tally with everything else. The list is stored as HMAC-SHA256 of the BSSID under a server-held pepper, so the server can block a network it is no longer allowed to store in the clear. The check runs before anything is stored, which is stricter than the order below and is deliberate |
 | **P6** | Unpublish a network not observed for 365 days, or that reaches 3 `private` or `gone` reports, or whose owner withdraws it |
-| **P7** | Delete raw observations within 7 days of the aggregation that consumed them. Delete the rate-limit counters and the daily salt within 24 hours. Both are enforced by a scheduled job, not by hand |
+| **P7** | Delete raw observations within 24 hours of the run that consumed them. Delete the rate-limit counters and the daily salt within 24 hours. Enforced by a scheduled job, not by hand |
 | **P8** | A network's public id is random and carries no derivation from its BSSID, SSID or position. Ids are not reused after P6 |
-| **P9** | When aggregation consumes the observations of a **completed** UTC day, record on the network only that day and how many distinct buckets were seen in it. Never keep the bucket values. Count a day once. P1 reads this tally, so the threshold outlives the raw data |
+| **P9** | Consume a UTC day only once it is **closed**: 8 days after it ended, past the 7-day window R7 lets a client upload within, so no observation for that day can still arrive. Record on the network only the day, the number of distinct buckets seen in it, and the observation count. Never keep the bucket values. A closed day is tallied once and never revised. P1 reads this tally, so the threshold outlives the raw data |
+| **P10** | Compact tally rows older than 90 days into one row holding the summed observation count, summed bucket count and number of days. P1 reads those sums, so nothing about the threshold changes, and the per-day record of when a network was seen goes |
 
 ## How P1 and P7 fit together
 
@@ -40,6 +41,36 @@ Two consequences worth stating:
 - Aggregation processes only **completed** UTC days, so a day cannot be counted
   twice by two runs. Publication is therefore up to a day behind the last
   observation, which is immaterial next to P1's own two-day requirement.
+
+## What P1 protects against, and what it does not
+
+P1 is a noise filter. It stops a single stray sighting becoming a published
+network: a bad fix, a network glimpsed from a passing train, one person's one
+mistake.
+
+**P1 does not stop a determined contributor, and cannot.** Because the salt
+rotates daily, one person contributing on three days produces three distinct
+buckets, and nothing here can tell that from three people. Three networks in an
+afternoon (home line, mobile data, a VPN) does the same. The only way to catch
+it would be to keep something that links a contributor across days, which is
+exactly what this project refuses to keep.
+
+So do not read P1 as an anti-abuse defence, and do not "strengthen" it by
+storing contributor identity for longer: that trade is not on the table. What
+defends the data against a determined actor is moderation, the reports in P6,
+and, if the project ever needs it, anonymous tokens that prove a submission is
+distinct without saying whose it is.
+
+### The lag this creates
+
+A network first seen today can be published nine days later at the earliest:
+eight for its day to close under P9, and P1 still wants a second day. That is
+the price of counting each day exactly once without keeping what would let us
+revise it.
+
+An app should therefore show a contributor their own pending sightings
+locally. The map cannot show them for over a week, and a contributor who sees
+nothing at all will reasonably conclude the app is broken.
 
 ## Choices these rules leave open, and how the server makes them
 
