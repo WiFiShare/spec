@@ -12,7 +12,7 @@ Version: `1` (draft). Nothing here is frozen until the first public beta.
 | `docs/data-model.md` | The entities: observation, batch, envelope, published network, report, opt-out, claim |
 | `docs/geohash.md` | Why areas are geohash cells, and which prefix length means what |
 | `privacy/filter-rules.md` | Rules R1–R12: what an app may upload, and what it must drop on the device |
-| `privacy/publish-rules.md` | Rules P1–P8: what the server may publish, and at what precision |
+| `privacy/publish-rules.md` | Rules P1–P10: what the server may publish, at what precision, and how the evidence for it is kept |
 | `privacy/fixtures/filter-cases.json` | Test vectors for R1–R12. Every client and the server must pass these |
 | `schemas/*.json` | JSON Schema (2020-12) for each entity |
 | `openapi.yaml` | The HTTP API, version 1 |

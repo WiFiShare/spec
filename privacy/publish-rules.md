@@ -1,4 +1,4 @@
-# Publish rules (P1–P8)
+# Publish rules (P1–P10)
 
 The filter rules decide what the server may receive. These decide what the
 server may show through the API and write into the public dump. Everything else
@@ -19,8 +19,9 @@ stays in the database, or is deleted on the schedule in P7.
 
 ## How P1 and P7 fit together
 
-P1 counts contributors across days; P7 deletes the evidence after a week. P9 is
-what reconciles them, and it costs nothing, because of how the salt works.
+P1 counts contributors across days; P7 deletes the evidence within a day of
+using it. P9 is what reconciles them, and it costs nothing, because of how the
+salt works.
 
 The rate-limit salt rotates every UTC day and is deleted within 24 hours. A
 bucket value is therefore **already day-scoped**: the same person contributing
@@ -28,7 +29,7 @@ on Monday and on Tuesday produces two unrelated values, and nobody, including
 us, can tell they were the same person. "Distinct buckets" has only ever meant
 distinct contributor-days.
 
-So counting distinct buckets **within** each completed day and adding the
+So counting distinct buckets **within** each closed day and adding the
 counts up gives the same number as counting them across the whole history,
 while keeping none of the values. That is P9. What survives on a network is a
 list like "2026-09-14: 2, 2026-09-15: 1", which says two people saw this
@@ -38,9 +39,9 @@ Two consequences worth stating:
 
 - A network whose third contributor arrives months after the first two **is**
   published. The tally waited for them.
-- Aggregation processes only **completed** UTC days, so a day cannot be counted
-  twice by two runs. Publication is therefore up to a day behind the last
-  observation, which is immaterial next to P1's own two-day requirement.
+- Aggregation processes only **closed** UTC days, 8 days after they end, so a
+  day is counted once and never has to be revised. See the lag that creates,
+  below.
 
 ## What P1 protects against, and what it does not
 
@@ -72,6 +73,16 @@ An app should therefore show a contributor their own pending sightings
 locally. The map cannot show them for over a week, and a contributor who sees
 nothing at all will reasonably conclude the app is broken.
 
+## Details of P9 and P10 that implementations kept having to guess
+
+| Question | Answer |
+| --- | --- |
+| What date does a compacted row carry? | The earliest day it covers. A row has to be dated, and that date says no more than `first_seen`, which P2 publishes anyway |
+| Does P10 bound the tally completely? | No, and it does not need to. A network keeps at most 90 daily rows plus one compacted row. That is bounded, which is the point |
+| Does an opt-out delete the network row too? | No. The tally goes, the network row stays, unpublished and marked opted out. Deleting it would lose the record that keeps it out |
+| What happens to the tally when P6 unpublishes a stale network? | It stays, compacted. If the network is seen again it carries on from where it was, rather than starting over |
+| Is P1 re-tested after publication? | No. P1 is an entry gate. Once published, only P4, P5 and P6 can take a network back out |
+
 ## Choices these rules leave open, and how the server makes them
 
 Two numbers are visible in the published output, so they are pinned here rather
@@ -80,7 +91,7 @@ than left to each implementation.
 | Choice | Rule |
 | --- | --- |
 | RSSI weighting for the centroid | `weight = rssi + 101`, so −100 dBm weighs 1 and 0 dBm weighs 101. Monotonic and never zero |
-| How P4 measures "span" | The diagonal of a bounding box kept cumulatively on the network, not the maximum pairwise distance. Raw observations are deleted at 7 days, so a running box is all that survives. It is never smaller than the true span, so the check errs towards not publishing |
+| How P4 measures "span" | The diagonal of a bounding box kept cumulatively on the network, not the maximum pairwise distance. Raw observations do not outlive their aggregation by more than a day (P7), so a running box is all that survives. It is never smaller than the true span, so the check errs towards not publishing |
 
 ## Ordering
 
@@ -88,7 +99,7 @@ The aggregation job applies the rules in this order, and stops at the first that
 refuses:
 
 ```
-consume a completed UTC day -> tally it (P9) -> opt-out (P5) -> mobile (P4)
+consume a closed UTC day (D+8) -> tally it (P9) -> opt-out (P5) -> mobile (P4)
   -> threshold (P1) -> precision (P2/P3) -> write
 ```
 
